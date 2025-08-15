@@ -1,0 +1,19 @@
+{
+  "siteTitle": "Breakfast Online Ordering",
+  "cart": "Cart",
+  "addToCart": "Add to cart",
+  "checkout": "Checkout",
+  "total": "Total",
+  "takeaway": "Takeaway",
+  "dinein": "Dine-in",
+  "pickupTime": "Pickup time",
+  "placeOrder": "Place Order",
+  "newOrder": "New",
+  "inProgress": "In progress",
+  "done": "Done",
+  "adminPanel": "Kitchen Dashboard",
+  "payNow": "Pay now",
+  "paid": "Paid",
+  "unpaid": "Unpaid",
+  "menu": "Menu"
+}
