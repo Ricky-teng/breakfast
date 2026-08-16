@@ -71,7 +71,10 @@ export default function MenuPage() {
     }
   });
   const [view, setView] = useState<"browse" | "checkout">("browse");
-  const [activeItem, setActiveItem] = useState<MenuItem | null>(null);
+  const [modalState, setModalState] = useState<{
+    item: MenuItem;
+    editingLine: CartLine | null;
+  } | null>(null);
 
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -88,6 +91,12 @@ export default function MenuPage() {
 
   const cartCount = cart.reduce((sum, l) => sum + l.quantity, 0);
   const cartTotal = cart.reduce((sum, l) => sum + unitPrice(l) * l.quantity, 0);
+  const editableItemIds = new Set(
+    categories
+      .flatMap((c) => c.items)
+      .filter((i) => i.optionGroups.length > 0)
+      .map((i) => i.id),
+  );
 
   function addToCart(
     item: MenuItem,
@@ -127,12 +136,57 @@ export default function MenuPage() {
     );
   }
 
+  function removeLine(key: string) {
+    setCart((prev) => prev.filter((l) => l.key !== key));
+  }
+
   function handleItemTap(item: MenuItem) {
     if (item.optionGroups.length === 0) {
       addToCart(item, [], 1);
       return;
     }
-    setActiveItem(item);
+    setModalState({ item, editingLine: null });
+  }
+
+  function handleEditLine(line: CartLine) {
+    const item = categories
+      .flatMap((c) => c.items)
+      .find((i) => i.id === line.menuItemId);
+    if (!item || item.optionGroups.length === 0) return;
+    setModalState({ item, editingLine: line });
+  }
+
+  function handleModalConfirm(options: Option[], quantity: number) {
+    if (!modalState) return;
+    const { item, editingLine } = modalState;
+
+    setCart((prev) => {
+      const withoutEditingLine = editingLine
+        ? prev.filter((l) => l.key !== editingLine.key)
+        : prev;
+      const key = lineKey(
+        item.id,
+        options.map((o) => o.id),
+      );
+      const existing = withoutEditingLine.find((l) => l.key === key);
+      if (existing) {
+        return withoutEditingLine.map((l) =>
+          l.key === key ? { ...l, quantity: l.quantity + quantity } : l,
+        );
+      }
+      return [
+        ...withoutEditingLine,
+        {
+          key,
+          menuItemId: item.id,
+          name: item.name,
+          basePrice: item.price,
+          selectedOptions: options,
+          quantity,
+        },
+      ];
+    });
+    setModalState(null);
   }
 
   async function submitOrder() {
@@ -219,7 +273,10 @@ export default function MenuPage() {
       ) : (
         <CheckoutView
           cart={cart}
+          editableItemIds={editableItemIds}
           onUpdateQuantity={updateQuantity}
+          onRemoveLine={removeLine}
+          onEditLine={handleEditLine}
           customerName={customerName}
           setCustomerName={setCustomerName}
           customerPhone={customerPhone}
@@ -244,14 +301,12 @@ export default function MenuPage() {
         </button>
       )}
 
-      {activeItem && (
+      {modalState && (
         <ItemModal
-          item={activeItem}
-          onClose={() => setActiveItem(null)}
-          onAdd={(options, quantity) => {
-            addToCart(activeItem, options, quantity);
-            setActiveItem(null);
-          }}
+          item={modalState.item}
+          initialLine={modalState.editingLine}
+          onClose={() => setModalState(null)}
+          onConfirm={handleModalConfirm}
         />
       )}
     </div>
@@ -325,15 +380,31 @@ function BrowseView({
 
 function ItemModal({
   item,
+  initialLine,
   onClose,
-  onAdd,
+  onConfirm,
 }: {
   item: MenuItem;
+  initialLine?: CartLine | null;
   onClose: () => void;
-  onAdd: (options: Option[], quantity: number) => void;
+  onConfirm: (options: Option[], quantity: number) => void;
 }) {
-  const [selections, setSelections] = useState<Record<string, string[]>>({});
-  const [quantity, setQuantity] = useState(1);
+  const [selections, setSelections] = useState<Record<string, string[]>>(
+    () => {
+      if (!initialLine) return {};
+      const initial: Record<string, string[]> = {};
+      for (const group of item.optionGroups) {
+        const selectedIds = group.options
+          .filter((o) =>
+            initialLine.selectedOptions.some((selected) => selected.id === o.id),
+          )
+          .map((o) => o.id);
+        if (selectedIds.length > 0) initial[group.id] = selectedIds;
+      }
+      return initial;
+    },
+  );
+  const [quantity, setQuantity] = useState(initialLine?.quantity ?? 1);
 
   function toggleOption(group: OptionGroup, optionId: string) {
     setSelections((prev) => {
@@ -426,10 +497,10 @@ function ItemModal({
           </div>
           <button
             disabled={missingRequired}
-            onClick={() => onAdd(selectedOptions, quantity)}
+            onClick={() => onConfirm(selectedOptions, quantity)}
             className="rounded-full bg-amber-950 px-5 py-2.5 font-medium text-white disabled:opacity-40"
           >
-            加入購物車 · ${totalPrice}
+            {initialLine ? "更新購物車" : "加入購物車"} · ${totalPrice}
           </button>
         </div>
       </div>
@@ -439,7 +510,10 @@ function ItemModal({
 
 function CheckoutView({
   cart,
+  editableItemIds,
   onUpdateQuantity,
+  onRemoveLine,
+  onEditLine,
   customerName,
   setCustomerName,
   customerPhone,
@@ -453,7 +527,10 @@ function CheckoutView({
   onSubmit,
 }: {
   cart: CartLine[];
+  editableItemIds: Set<string>;
   onUpdateQuantity: (key: string, quantity: number) => void;
+  onRemoveLine: (key: string) => void;
+  onEditLine: (line: CartLine) => void;
   customerName: string;
   setCustomerName: (v: string) => void;
   customerPhone: string;
@@ -475,41 +552,64 @@ function CheckoutView({
         <p className="text-zinc-400">購物車是空的</p>
       ) : (
         <ul className="mb-6 flex flex-col gap-2">
-          {cart.map((line) => (
-            <li
-              key={line.key}
-              className="rounded-xl border border-zinc-100 bg-white p-3 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-zinc-800">{line.name}</p>
-                  {line.selectedOptions.length > 0 && (
-                    <p className="text-xs text-zinc-400">
-                      {line.selectedOptions.map((o) => o.name).join("、")}
+          {cart.map((line) => {
+            const canEdit = editableItemIds.has(line.menuItemId);
+            return (
+              <li
+                key={line.key}
+                className="rounded-xl border border-zinc-100 bg-white p-3 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <button
+                    onClick={() => canEdit && onEditLine(line)}
+                    disabled={!canEdit}
+                    className="text-left"
+                  >
+                    <p className="text-zinc-800">
+                      {line.name}
+                      {canEdit && (
+                        <span className="ml-1.5 text-xs text-amber-600 underline">
+                          編輯
+                        </span>
+                      )}
                     </p>
-                  )}
+                    {line.selectedOptions.length > 0 && (
+                      <p className="text-xs text-zinc-400">
+                        {line.selectedOptions.map((o) => o.name).join("、")}
+                      </p>
+                    )}
+                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="font-medium text-amber-700">
+                      ${unitPrice(line) * line.quantity}
+                    </span>
+                    <button
+                      onClick={() => onRemoveLine(line.key)}
+                      className="text-zinc-300 hover:text-red-500"
+                      aria-label="刪除"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
-                <span className="shrink-0 font-medium text-amber-700">
-                  ${unitPrice(line) * line.quantity}
-                </span>
-              </div>
-              <div className="mt-2 flex items-center gap-3">
-                <button
-                  onClick={() => onUpdateQuantity(line.key, line.quantity - 1)}
-                  className="h-7 w-7 rounded-full bg-zinc-100 text-zinc-600"
-                >
-                  −
-                </button>
-                <span className="w-4 text-center text-sm">{line.quantity}</span>
-                <button
-                  onClick={() => onUpdateQuantity(line.key, line.quantity + 1)}
-                  className="h-7 w-7 rounded-full bg-zinc-100 text-zinc-600"
-                >
-                  +
-                </button>
-              </div>
-            </li>
-          ))}
+                <div className="mt-2 flex items-center gap-3">
+                  <button
+                    onClick={() => onUpdateQuantity(line.key, line.quantity - 1)}
+                    className="h-7 w-7 rounded-full bg-zinc-100 text-zinc-600"
+                  >
+                    −
+                  </button>
+                  <span className="w-4 text-center text-sm">{line.quantity}</span>
+                  <button
+                    onClick={() => onUpdateQuantity(line.key, line.quantity + 1)}
+                    className="h-7 w-7 rounded-full bg-zinc-100 text-zinc-600"
+                  >
+                    +
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
