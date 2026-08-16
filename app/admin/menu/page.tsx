@@ -22,13 +22,6 @@ type MenuCategory = { id: string; name: string; items: MenuItem[] };
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-function optionGroupSummary(group: OptionGroup) {
-  const options = group.options
-    .map((o) => (o.extraPrice ? `${o.name}(+${o.extraPrice})` : o.name))
-    .join("、");
-  return `${group.name}:${options}`;
-}
-
 export default function AdminMenuPage() {
   const { data, mutate, isLoading } = useSWR<{ categories: MenuCategory[] }>(
     "/api/admin/menu",
@@ -38,8 +31,78 @@ export default function AdminMenuPage() {
   const [newItemDrafts, setNewItemDrafts] = useState<
     Record<string, { name: string; price: string }>
   >({});
+  const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(
+    new Set(),
+  );
 
   const categories = data?.categories ?? [];
+
+  function toggleExpanded(itemId: string) {
+    setExpandedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }
+
+  async function addOptionGroup(itemId: string) {
+    const name = prompt("選項群組名稱(例如:加購、尺寸)");
+    if (!name?.trim()) return;
+    await fetch(`/api/admin/menu/items/${itemId}/option-groups`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    mutate();
+  }
+
+  async function updateOptionGroup(id: string, patch: Record<string, unknown>) {
+    await fetch(`/api/admin/menu/option-groups/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    mutate();
+  }
+
+  async function deleteOptionGroup(id: string) {
+    if (!confirm("確定要刪除這個選項群組嗎?(底下的選項會一起刪除)")) return;
+    await fetch(`/api/admin/menu/option-groups/${id}`, { method: "DELETE" });
+    mutate();
+  }
+
+  async function addOption(groupId: string) {
+    const name = prompt("選項名稱(例如:加蛋、大杯)");
+    if (!name?.trim()) return;
+    const priceInput = prompt("加價金額(沒有加價填 0)", "0");
+    if (priceInput === null) return;
+    const extraPrice = Number(priceInput);
+    if (!Number.isFinite(extraPrice) || extraPrice < 0) {
+      alert("金額不正確");
+      return;
+    }
+    await fetch(`/api/admin/menu/option-groups/${groupId}/options`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), extraPrice }),
+    });
+    mutate();
+  }
+
+  async function updateOption(id: string, patch: Record<string, unknown>) {
+    await fetch(`/api/admin/menu/options/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    mutate();
+  }
+
+  async function deleteOption(id: string) {
+    await fetch(`/api/admin/menu/options/${id}`, { method: "DELETE" });
+    mutate();
+  }
 
   async function updateItem(id: string, patch: Record<string, unknown>) {
     mutate(
@@ -242,10 +305,124 @@ export default function AdminMenuPage() {
                         刪除
                       </button>
                     </div>
-                    {item.optionGroups.length > 0 && (
-                      <p className="mt-1.5 pl-6 text-xs text-amber-700/60">
-                        {item.optionGroups.map(optionGroupSummary).join(" ‧ ")}
-                      </p>
+
+                    <button
+                      onClick={() => toggleExpanded(item.id)}
+                      className="mt-1.5 pl-6 text-xs text-amber-700/60 hover:text-amber-700"
+                    >
+                      客製化選項({item.optionGroups.length}){" "}
+                      {expandedItemIds.has(item.id) ? "▾" : "▸"}
+                    </button>
+
+                    {expandedItemIds.has(item.id) && (
+                      <div className="mt-2 flex flex-col gap-3 rounded-lg bg-amber-50/60 p-3 pl-6">
+                        {item.optionGroups.map((group) => (
+                          <div key={group.id} className="flex flex-col gap-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <input
+                                key={`${group.id}-name`}
+                                defaultValue={group.name}
+                                onBlur={(e) => {
+                                  if (e.target.value.trim() !== group.name) {
+                                    updateOptionGroup(group.id, {
+                                      name: e.target.value.trim(),
+                                    });
+                                  }
+                                }}
+                                className="min-w-0 flex-1 rounded-lg border border-transparent bg-white px-2 py-1 text-sm font-medium hover:border-zinc-200 focus:border-amber-400 focus:outline-none"
+                              />
+                              <label className="flex items-center gap-1 text-xs text-zinc-500">
+                                <input
+                                  type="checkbox"
+                                  checked={group.required}
+                                  onChange={(e) =>
+                                    updateOptionGroup(group.id, {
+                                      required: e.target.checked,
+                                    })
+                                  }
+                                  className="h-3.5 w-3.5 accent-amber-500"
+                                />
+                                必選
+                              </label>
+                              <label className="flex items-center gap-1 text-xs text-zinc-500">
+                                <input
+                                  type="checkbox"
+                                  checked={group.multiple}
+                                  onChange={(e) =>
+                                    updateOptionGroup(group.id, {
+                                      multiple: e.target.checked,
+                                    })
+                                  }
+                                  className="h-3.5 w-3.5 accent-amber-500"
+                                />
+                                可複選
+                              </label>
+                              <button
+                                onClick={() => deleteOptionGroup(group.id)}
+                                className="text-xs text-zinc-400 hover:text-red-600"
+                              >
+                                刪除群組
+                              </button>
+                            </div>
+
+                            <ul className="flex flex-col gap-1 pl-3">
+                              {group.options.map((option) => (
+                                <li
+                                  key={option.id}
+                                  className="flex items-center gap-2"
+                                >
+                                  <input
+                                    key={`${option.id}-name`}
+                                    defaultValue={option.name}
+                                    onBlur={(e) => {
+                                      if (e.target.value.trim() !== option.name) {
+                                        updateOption(option.id, {
+                                          name: e.target.value.trim(),
+                                        });
+                                      }
+                                    }}
+                                    className="min-w-0 flex-1 rounded-lg border border-transparent bg-white px-2 py-1 text-sm hover:border-zinc-200 focus:border-amber-400 focus:outline-none"
+                                  />
+                                  <span className="text-xs text-zinc-400">+$</span>
+                                  <input
+                                    key={`${option.id}-price`}
+                                    type="number"
+                                    defaultValue={option.extraPrice}
+                                    onBlur={(e) => {
+                                      const extraPrice = Number(e.target.value);
+                                      if (
+                                        Number.isFinite(extraPrice) &&
+                                        extraPrice !== option.extraPrice
+                                      ) {
+                                        updateOption(option.id, { extraPrice });
+                                      }
+                                    }}
+                                    className="w-14 rounded-lg border border-transparent bg-white px-2 py-1 text-sm hover:border-zinc-200 focus:border-amber-400 focus:outline-none"
+                                  />
+                                  <button
+                                    onClick={() => deleteOption(option.id)}
+                                    className="text-xs text-zinc-400 hover:text-red-600"
+                                  >
+                                    刪除
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                            <button
+                              onClick={() => addOption(group.id)}
+                              className="ml-3 self-start text-xs text-amber-700 hover:underline"
+                            >
+                              + 新增選項
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => addOptionGroup(item.id)}
+                          className="self-start text-xs font-medium text-amber-800 hover:underline"
+                        >
+                          + 新增選項群組
+                        </button>
+                      </div>
                     )}
                   </li>
                 ))}
