@@ -392,15 +392,23 @@ export default function BoardPage() {
               </span>
             )}
           </div>
-          <label className="flex items-center gap-2 text-sm text-zinc-500">
-            <input
-              type="checkbox"
-              checked={hideDone}
-              onChange={(e) => setHideDone(e.target.checked)}
-              className="h-4 w-4 rounded accent-amber-500"
-            />
-            只顯示未完成
-          </label>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-zinc-500">
+              <input
+                type="checkbox"
+                checked={hideDone}
+                onChange={(e) => setHideDone(e.target.checked)}
+                className="h-4 w-4 rounded accent-amber-500"
+              />
+              只顯示未完成
+            </label>
+            <a
+              href="/admin/menu"
+              className="text-sm text-amber-700 hover:underline"
+            >
+              管理
+            </a>
+          </div>
         </div>
         {error && (
           <div className="bg-red-600 px-4 py-1.5 text-center text-sm font-medium text-white sm:px-6">

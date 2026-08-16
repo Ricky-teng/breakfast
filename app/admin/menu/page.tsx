@@ -217,6 +217,12 @@ export default function AdminMenuPage() {
             >
               重新匯入預設菜單
             </button>
+            <a
+              href="/admin/orders"
+              className="text-sm text-amber-700 hover:underline"
+            >
+              訂單紀錄
+            </a>
             <a href="/board" className="text-sm text-amber-700 hover:underline">
               回看板
             </a>
