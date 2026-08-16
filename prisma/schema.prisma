@@ -25,3 +25,82 @@ model Message {
 
   @@index([receivedAt])
 }
+
+model MenuCategory {
+  id        String     @id @default(cuid())
+  name      String
+  sortOrder Int        @default(0)
+  items     MenuItem[]
+}
+
+model MenuItem {
+  id           String        @id @default(cuid())
+  categoryId   String
+  category     MenuCategory  @relation(fields: [categoryId], references: [id])
+  name         String
+  price        Int
+  isAvailable  Boolean       @default(true)
+  sortOrder    Int           @default(0)
+  optionGroups OptionGroup[]
+  orderItems   OrderItem[]
+
+  @@index([categoryId])
+}
+
+model OptionGroup {
+  id         String   @id @default(cuid())
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  name       String
+  required   Boolean  @default(false)
+  multiple   Boolean  @default(false)
+  sortOrder  Int      @default(0)
+  options    Option[]
+}
+
+model Option {
+  id               String            @id @default(cuid())
+  optionGroupId    String
+  optionGroup      OptionGroup       @relation(fields: [optionGroupId], references: [id], onDelete: Cascade)
+  name             String
+  extraPrice       Int               @default(0)
+  sortOrder        Int               @default(0)
+  orderItemOptions OrderItemOption[]
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  customerName  String
+  customerPhone String
+  pickupTime    DateTime?
+  totalPrice    Int
+  receivedAt    DateTime    @default(now())
+  startedAt     DateTime?
+  isDone        Boolean     @default(false)
+  items         OrderItem[]
+
+  @@index([receivedAt])
+}
+
+model OrderItem {
+  id                String            @id @default(cuid())
+  orderId           String
+  order             Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId        String?
+  menuItem          MenuItem?         @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  itemNameSnapshot  String
+  unitPriceSnapshot Int
+  quantity          Int
+  lineTotal         Int
+  selectedOptions   OrderItemOption[]
+}
+
+model OrderItemOption {
+  id                 String    @id @default(cuid())
+  orderItemId        String
+  orderItem          OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  optionId           String?
+  option             Option?   @relation(fields: [optionId], references: [id], onDelete: SetNull)
+  optionNameSnapshot String
+  extraPriceSnapshot Int
+}

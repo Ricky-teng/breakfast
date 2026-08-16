@@ -17,5 +17,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/board", "/api/messages/:path*"],
+  matcher: [
+    "/board",
+    "/api/messages/:path*",
+    "/admin/:path*",
+    "/api/admin/:path*",
+  ],
 };
