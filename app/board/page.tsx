@@ -130,6 +130,7 @@ export default function BoardPage() {
   const [now, setNow] = useState(() => Date.now());
   const knownIds = useRef<Set<string> | null>(null);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
 
   const messages = data?.messages ?? [];
 
@@ -161,6 +162,18 @@ export default function BoardPage() {
     requestBody: Record<string, unknown>,
     optimisticPatch: Partial<Message>,
   ) {
+    // 卡住同一筆訂單的按鈕直到這次請求完成,避免手指連點兩下送出兩個重
+    // 複請求(例如「標記完成」按兩下寄出兩次取餐通知給客人)。
+    let alreadyBusy = false;
+    setBusyIds((prev) => {
+      if (prev.has(id)) {
+        alreadyBusy = true;
+        return prev;
+      }
+      return new Set(prev).add(id);
+    });
+    if (alreadyBusy) return;
+
     mutate(
       (current) =>
         current && {
@@ -170,12 +183,20 @@ export default function BoardPage() {
         },
       { revalidate: false },
     );
-    await fetch(`/api/messages/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
-    });
-    mutate();
+    try {
+      await fetch(`/api/messages/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+      await mutate();
+    } finally {
+      setBusyIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   }
 
   const pending = messages
@@ -198,6 +219,7 @@ export default function BoardPage() {
         ? "started"
         : "pending";
     const isNew = newIds.has(m.id);
+    const busy = busyIds.has(m.id);
 
     const cardClass = overdue
       ? "border-red-200 bg-red-50/70"
@@ -244,6 +266,7 @@ export default function BoardPage() {
         <div className="flex gap-2">
           {state === "pending" && (
             <button
+              disabled={busy}
               onClick={() =>
                 patchMessage(
                   m.id,
@@ -251,7 +274,7 @@ export default function BoardPage() {
                   { startedAt: new Date().toISOString() },
                 )
               }
-              className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white transition-colors active:bg-amber-600"
+              className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white transition-colors active:bg-amber-600 disabled:opacity-50"
             >
               <PlayIcon />
               開始製作
@@ -259,10 +282,11 @@ export default function BoardPage() {
           )}
           {state !== "done" && (
             <button
+              disabled={busy}
               onClick={() =>
                 patchMessage(m.id, { isDone: true }, { isDone: true })
               }
-              className="flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors active:bg-zinc-700"
+              className="flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors active:bg-zinc-700 disabled:opacity-50"
             >
               <CheckIcon />
               標記完成
@@ -270,10 +294,11 @@ export default function BoardPage() {
           )}
           {state === "done" && (
             <button
+              disabled={busy}
               onClick={() =>
                 patchMessage(m.id, { isDone: false }, { isDone: false })
               }
-              className="flex items-center gap-1.5 rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-600 transition-colors active:bg-zinc-200"
+              className="flex items-center gap-1.5 rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-600 transition-colors active:bg-zinc-200 disabled:opacity-50"
             >
               <UndoIcon />
               標記為未完成

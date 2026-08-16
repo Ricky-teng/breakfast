@@ -13,14 +13,15 @@ datasource db {
 }
 
 model Message {
-  id            String    @id @default(cuid())
-  lineMessageId String?   @unique
-  lineUserId    String
-  displayName   String
-  text          String
-  receivedAt    DateTime  @default(now())
-  startedAt     DateTime?
-  isDone        Boolean   @default(false)
+  id             String    @id @default(cuid())
+  lineMessageId  String?   @unique
+  lineUserId     String
+  displayName    String
+  text           String
+  receivedAt     DateTime  @default(now())
+  startedAt      DateTime?
+  isDone         Boolean   @default(false)
+  doneNotifiedAt DateTime?
 
   @@index([receivedAt])
 }
