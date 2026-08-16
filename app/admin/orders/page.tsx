@@ -65,6 +65,9 @@ export default function AdminOrdersPage() {
             <a href="/admin/menu" className="text-sm text-amber-700 hover:underline">
               菜單管理
             </a>
+            <a href="/admin" className="text-sm text-amber-700 hover:underline">
+              後台首頁
+            </a>
             <a href="/board" className="text-sm text-amber-700 hover:underline">
               回看板
             </a>

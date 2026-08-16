@@ -252,13 +252,17 @@ export default function MenuPage() {
               <p className="text-xs text-amber-700/60">線上點餐</p>
             </div>
           </div>
-          {view === "checkout" && (
+          {view === "checkout" ? (
             <button
               onClick={() => setView("browse")}
               className="text-sm text-amber-700 hover:underline"
             >
               返回菜單
             </button>
+          ) : (
+            <a href="/admin" className="text-sm text-amber-700 hover:underline">
+              後台管理
+            </a>
           )}
         </div>
       </div>

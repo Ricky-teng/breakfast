@@ -223,6 +223,9 @@ export default function AdminMenuPage() {
             >
               訂單紀錄
             </a>
+            <a href="/admin" className="text-sm text-amber-700 hover:underline">
+              後台首頁
+            </a>
             <a href="/board" className="text-sm text-amber-700 hover:underline">
               回看板
             </a>

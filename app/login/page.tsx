@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 function EggMark() {
   return (
@@ -13,8 +13,10 @@ function EggMark() {
   );
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") || "/admin";
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -31,7 +33,7 @@ export default function LoginPage() {
     });
 
     if (res.ok) {
-      router.push("/board");
+      router.push(next);
       router.refresh();
     } else {
       setError("PIN 錯誤,請再試一次");
@@ -52,7 +54,7 @@ export default function LoginPage() {
           美上美早餐店
         </h1>
         <p className="mb-6 text-center text-sm text-amber-700/70">
-          輸入 PIN 碼查看訂單看板
+          輸入 PIN 碼進入後台
         </p>
         <input
           type="password"
@@ -71,9 +73,17 @@ export default function LoginPage() {
           disabled={submitting || !pin}
           className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 py-3 font-medium text-white shadow-md shadow-amber-500/30 transition-opacity disabled:opacity-40"
         >
-          {submitting ? "確認中…" : "進入看板"}
+          {submitting ? "確認中…" : "登入"}
         </button>
       </form>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

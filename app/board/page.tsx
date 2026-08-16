@@ -403,7 +403,7 @@ export default function BoardPage() {
               只顯示未完成
             </label>
             <a
-              href="/admin/menu"
+              href="/admin"
               className="text-sm text-amber-700 hover:underline"
             >
               管理
