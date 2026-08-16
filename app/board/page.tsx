@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
-type Message = {
+type BoardEntry = {
   id: string;
+  source: "line" | "web";
   displayName: string;
-  text: string;
+  summary: string;
   receivedAt: string;
   startedAt: string | null;
   isDone: boolean;
+  totalPrice: number | null;
 };
 
 const POLL_INTERVAL_MS = 4000;
@@ -21,6 +23,12 @@ const fetcher = (url: string) =>
     if (!res.ok) throw new Error(`request failed: ${res.status}`);
     return res.json();
   });
+
+function actionEndpoint(entry: BoardEntry) {
+  return entry.source === "line"
+    ? `/api/messages/${entry.id}`
+    : `/api/admin/orders/${entry.id}`;
+}
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("zh-TW", {
@@ -130,9 +138,43 @@ function WarnIcon() {
   );
 }
 
+function LineSourceIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3.5 w-3.5"
+    >
+      <path d="M3 5.5a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 17 5.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3H4.5A1.5 1.5 0 0 1 3 11.5v-6Z" />
+    </svg>
+  );
+}
+
+function CartSourceIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3.5 w-3.5"
+    >
+      <path d="M4 6h13l-1.5 7.5a1 1 0 0 1-1 .8H6.7a1 1 0 0 1-1-.8L4 4H2.5" />
+      <circle cx="8" cy="17" r="1" />
+      <circle cx="14.5" cy="17" r="1" />
+    </svg>
+  );
+}
+
 export default function BoardPage() {
-  const { data, error, mutate, isLoading } = useSWR<{ messages: Message[] }>(
-    "/api/messages",
+  const { data, error, mutate, isLoading } = useSWR<{ entries: BoardEntry[] }>(
+    "/api/board",
     fetcher,
     { refreshInterval: POLL_INTERVAL_MS },
   );
@@ -142,7 +184,7 @@ export default function BoardPage() {
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
 
-  const messages = data?.messages ?? [];
+  const entries = data?.entries ?? [];
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30000);
@@ -151,7 +193,7 @@ export default function BoardPage() {
 
   useEffect(() => {
     if (!data) return;
-    const currentIds = new Set(data.messages.map((m) => m.id));
+    const currentIds = new Set(data.entries.map((e) => e.id));
 
     if (knownIds.current === null) {
       knownIds.current = currentIds;
@@ -167,34 +209,34 @@ export default function BoardPage() {
     knownIds.current = currentIds;
   }, [data]);
 
-  async function patchMessage(
-    id: string,
+  async function patchEntry(
+    entry: BoardEntry,
     requestBody: Record<string, unknown>,
-    optimisticPatch: Partial<Message>,
+    optimisticPatch: Partial<BoardEntry>,
   ) {
     // 卡住同一筆訂單的按鈕直到這次請求完成,避免手指連點兩下送出兩個重
     // 複請求(例如「標記完成」按兩下寄出兩次取餐通知給客人)。
     let alreadyBusy = false;
     setBusyIds((prev) => {
-      if (prev.has(id)) {
+      if (prev.has(entry.id)) {
         alreadyBusy = true;
         return prev;
       }
-      return new Set(prev).add(id);
+      return new Set(prev).add(entry.id);
     });
     if (alreadyBusy) return;
 
     mutate(
       (current) =>
         current && {
-          messages: current.messages.map((m) =>
-            m.id === id ? { ...m, ...optimisticPatch } : m,
+          entries: current.entries.map((e) =>
+            e.id === entry.id ? { ...e, ...optimisticPatch } : e,
           ),
         },
       { revalidate: false },
     );
     try {
-      await fetch(`/api/messages/${id}`, {
+      await fetch(actionEndpoint(entry), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
@@ -203,33 +245,33 @@ export default function BoardPage() {
     } finally {
       setBusyIds((prev) => {
         const next = new Set(prev);
-        next.delete(id);
+        next.delete(entry.id);
         return next;
       });
     }
   }
 
-  const pending = messages
-    .filter((m) => !m.isDone)
+  const pending = entries
+    .filter((e) => !e.isDone)
     .sort(
       (a, b) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime(),
     );
-  const done = messages
-    .filter((m) => m.isDone)
+  const done = entries
+    .filter((e) => e.isDone)
     .sort(
       (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
     );
 
-  function renderCard(m: Message) {
-    const waitMinutes = minutesSince(m.receivedAt, now);
-    const overdue = !m.isDone && waitMinutes >= OVERDUE_MINUTES;
-    const state: "pending" | "started" | "done" = m.isDone
+  function renderCard(entry: BoardEntry) {
+    const waitMinutes = minutesSince(entry.receivedAt, now);
+    const overdue = !entry.isDone && waitMinutes >= OVERDUE_MINUTES;
+    const state: "pending" | "started" | "done" = entry.isDone
       ? "done"
-      : m.startedAt
+      : entry.startedAt
         ? "started"
         : "pending";
-    const isNew = newIds.has(m.id);
-    const busy = busyIds.has(m.id);
+    const isNew = newIds.has(entry.id);
+    const busy = busyIds.has(entry.id);
 
     const accentClass = overdue
       ? "border-l-red-400 bg-red-50/50"
@@ -241,14 +283,22 @@ export default function BoardPage() {
 
     return (
       <li
-        key={m.id}
+        key={entry.id}
         className={`rounded-2xl border border-zinc-100 border-l-4 p-4 shadow-sm transition-all duration-300 ${accentClass} ${
           isNew ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-amber-50" : ""
         } ${state === "done" ? "opacity-60" : ""}`}
       >
         <div className="mb-1.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-zinc-900">{m.displayName}</span>
+            <span
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500"
+              title={entry.source === "line" ? "LINE 訊息" : "線上訂單"}
+            >
+              {entry.source === "line" ? <LineSourceIcon /> : <CartSourceIcon />}
+            </span>
+            <span className="font-medium text-zinc-900">
+              {entry.displayName}
+            </span>
             {state === "started" && (
               <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
                 製作中
@@ -261,7 +311,7 @@ export default function BoardPage() {
             }`}
           >
             {overdue && <WarnIcon />}
-            {m.isDone ? formatTime(m.receivedAt) : `${waitMinutes} 分鐘前`}
+            {entry.isDone ? formatTime(entry.receivedAt) : `${waitMinutes} 分鐘前`}
           </span>
         </div>
 
@@ -270,7 +320,12 @@ export default function BoardPage() {
             state === "done" ? "line-through" : ""
           }`}
         >
-          {m.text}
+          {entry.summary}
+          {entry.totalPrice !== null && (
+            <span className="ml-2 text-base font-medium text-amber-700">
+              ${entry.totalPrice}
+            </span>
+          )}
         </p>
 
         <div className="flex gap-2">
@@ -278,8 +333,8 @@ export default function BoardPage() {
             <button
               disabled={busy}
               onClick={() =>
-                patchMessage(
-                  m.id,
+                patchEntry(
+                  entry,
                   { start: true },
                   { startedAt: new Date().toISOString() },
                 )
@@ -294,7 +349,7 @@ export default function BoardPage() {
             <button
               disabled={busy}
               onClick={() =>
-                patchMessage(m.id, { isDone: true }, { isDone: true })
+                patchEntry(entry, { isDone: true }, { isDone: true })
               }
               className="flex items-center gap-1.5 rounded-full bg-amber-950 px-4 py-2 text-sm font-medium text-white transition-opacity active:opacity-80 disabled:opacity-50"
             >
@@ -306,7 +361,7 @@ export default function BoardPage() {
             <button
               disabled={busy}
               onClick={() =>
-                patchMessage(m.id, { isDone: false }, { isDone: false })
+                patchEntry(entry, { isDone: false }, { isDone: false })
               }
               className="flex items-center gap-1.5 rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-600 transition-colors active:bg-zinc-200 disabled:opacity-50"
             >
@@ -356,7 +411,7 @@ export default function BoardPage() {
 
       <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">
         {isLoading && <p className="text-amber-700/50">載入中…</p>}
-        {!isLoading && messages.length === 0 && (
+        {!isLoading && entries.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <EggMark className="h-12 w-12 opacity-60" />
             <p className="text-amber-700/50">目前沒有訂單,休息一下吧 ☕</p>

@@ -20,6 +20,7 @@ export const config = {
   matcher: [
     "/board",
     "/api/messages/:path*",
+    "/api/board",
     "/admin/:path*",
     "/api/admin/:path*",
   ],
