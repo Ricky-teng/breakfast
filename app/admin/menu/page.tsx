@@ -124,14 +124,40 @@ export default function AdminMenuPage() {
     }
   }
 
+  async function reseedMenu() {
+    if (
+      !confirm(
+        "確定要清空現有菜單、重新匯入預設菜單嗎?這個動作無法復原,而且如果已經有真實訂單會被拒絕執行。",
+      )
+    ) {
+      return;
+    }
+    const res = await fetch("/api/admin/menu/reseed", { method: "POST" });
+    if (res.ok) {
+      mutate();
+      alert("已重新匯入預設菜單");
+    } else {
+      const body = await res.json();
+      alert(body.error ?? "重新匯入失敗");
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 via-orange-50/40 to-white">
       <div className="sticky top-0 z-10 border-b-2 border-amber-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3.5 sm:px-6">
           <h1 className="text-lg font-semibold text-amber-950">菜單管理</h1>
-          <a href="/board" className="text-sm text-amber-700 hover:underline">
-            回看板
-          </a>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={reseedMenu}
+              className="text-sm text-zinc-400 hover:text-red-600"
+            >
+              重新匯入預設菜單
+            </button>
+            <a href="/board" className="text-sm text-amber-700 hover:underline">
+              回看板
+            </a>
+          </div>
         </div>
       </div>
 
