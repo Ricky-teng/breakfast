@@ -214,6 +214,7 @@ export default function MenuPage() {
           categories={categories}
           isLoading={isLoading}
           onItemTap={handleItemTap}
+          cart={cart}
         />
       ) : (
         <CheckoutView
@@ -261,11 +262,21 @@ function BrowseView({
   categories,
   isLoading,
   onItemTap,
+  cart,
 }: {
   categories: MenuCategory[];
   isLoading: boolean;
   onItemTap: (item: MenuItem) => void;
+  cart: CartLine[];
 }) {
+  const quantityByItemId = new Map<string, number>();
+  for (const line of cart) {
+    quantityByItemId.set(
+      line.menuItemId,
+      (quantityByItemId.get(line.menuItemId) ?? 0) + line.quantity,
+    );
+  }
+
   return (
     <div className="mx-auto max-w-xl px-4 py-5 sm:px-6">
       {isLoading && <p className="text-amber-700/50">載入菜單中…</p>}
@@ -276,20 +287,34 @@ function BrowseView({
               {category.name}
             </h2>
             <ul className="flex flex-col gap-2">
-              {category.items.map((item) => (
-                <li key={item.id}>
-                  <button
-                    onClick={() => onItemTap(item)}
-                    className="flex w-full items-center justify-between rounded-xl border border-zinc-100 bg-white px-4 py-3 text-left shadow-sm active:bg-amber-50"
-                  >
-                    <span className="text-zinc-800">{item.name}</span>
-                    <span className="shrink-0 pl-3 font-medium text-amber-700">
-                      ${item.price}
-                      {item.optionGroups.length > 0 ? " 起" : ""}
-                    </span>
-                  </button>
-                </li>
-              ))}
+              {category.items.map((item) => {
+                const quantityInCart = quantityByItemId.get(item.id) ?? 0;
+                return (
+                  <li key={item.id}>
+                    <button
+                      onClick={() => onItemTap(item)}
+                      className={`flex w-full items-center justify-between rounded-xl border bg-white px-4 py-3 text-left shadow-sm active:bg-amber-50 ${
+                        quantityInCart > 0
+                          ? "border-amber-300"
+                          : "border-zinc-100"
+                      }`}
+                    >
+                      <span className="text-zinc-800">{item.name}</span>
+                      <span className="flex shrink-0 items-center gap-2 pl-3">
+                        <span className="font-medium text-amber-700">
+                          ${item.price}
+                          {item.optionGroups.length > 0 ? " 起" : ""}
+                        </span>
+                        {quantityInCart > 0 && (
+                          <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white">
+                            x{quantityInCart}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         ))}
