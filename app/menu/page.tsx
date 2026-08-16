@@ -71,6 +71,9 @@ export default function MenuPage() {
     }
   });
   const [view, setView] = useState<"browse" | "checkout">("browse");
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
+    null,
+  );
   const [modalState, setModalState] = useState<{
     item: MenuItem;
     editingLine: CartLine | null;
@@ -265,11 +268,38 @@ export default function MenuPage() {
             </a>
           )}
         </div>
+
+        {view === "browse" && categories.length > 0 && (
+          <div className="overflow-x-auto border-t border-amber-100">
+            <div className="mx-auto flex max-w-xl gap-2 px-4 py-2 sm:px-6">
+              {categories.map((category) => {
+                const isActive = (activeCategoryId ?? categories[0].id) === category.id;
+                return (
+                  <button
+                    key={category.id}
+                    onClick={() => setActiveCategoryId(category.id)}
+                    className={`shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-amber-500 text-white"
+                        : "bg-amber-50 text-amber-800"
+                    }`}
+                  >
+                    {category.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {view === "browse" ? (
         <BrowseView
-          categories={categories}
+          category={
+            categories.find(
+              (c) => c.id === (activeCategoryId ?? categories[0]?.id),
+            ) ?? null
+          }
           isLoading={isLoading}
           onItemTap={handleItemTap}
           cart={cart}
@@ -318,12 +348,12 @@ export default function MenuPage() {
 }
 
 function BrowseView({
-  categories,
+  category,
   isLoading,
   onItemTap,
   cart,
 }: {
-  categories: MenuCategory[];
+  category: MenuCategory | null;
   isLoading: boolean;
   onItemTap: (item: MenuItem) => void;
   cart: CartLine[];
@@ -339,45 +369,36 @@ function BrowseView({
   return (
     <div className="mx-auto max-w-xl px-4 py-5 sm:px-6">
       {isLoading && <p className="text-amber-700/50">載入菜單中…</p>}
-      <div className="flex flex-col gap-7">
-        {categories.map((category) => (
-          <section key={category.id}>
-            <h2 className="mb-2 text-base font-semibold text-amber-950">
-              {category.name}
-            </h2>
-            <ul className="flex flex-col gap-2">
-              {category.items.map((item) => {
-                const quantityInCart = quantityByItemId.get(item.id) ?? 0;
-                return (
-                  <li key={item.id}>
-                    <button
-                      onClick={() => onItemTap(item)}
-                      className={`flex w-full items-center justify-between rounded-xl border bg-white px-4 py-3 text-left shadow-sm active:bg-amber-50 ${
-                        quantityInCart > 0
-                          ? "border-amber-300"
-                          : "border-zinc-100"
-                      }`}
-                    >
-                      <span className="text-zinc-800">{item.name}</span>
-                      <span className="flex shrink-0 items-center gap-2 pl-3">
-                        <span className="font-medium text-amber-700">
-                          ${item.price}
-                          {item.optionGroups.length > 0 ? " 起" : ""}
-                        </span>
-                        {quantityInCart > 0 && (
-                          <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white">
-                            x{quantityInCart}
-                          </span>
-                        )}
+      {category && (
+        <ul className="flex flex-col gap-2">
+          {category.items.map((item) => {
+            const quantityInCart = quantityByItemId.get(item.id) ?? 0;
+            return (
+              <li key={item.id}>
+                <button
+                  onClick={() => onItemTap(item)}
+                  className={`flex w-full items-center justify-between rounded-xl border bg-white px-4 py-3 text-left shadow-sm active:bg-amber-50 ${
+                    quantityInCart > 0 ? "border-amber-300" : "border-zinc-100"
+                  }`}
+                >
+                  <span className="text-zinc-800">{item.name}</span>
+                  <span className="flex shrink-0 items-center gap-2 pl-3">
+                    <span className="font-medium text-amber-700">
+                      ${item.price}
+                      {item.optionGroups.length > 0 ? " 起" : ""}
+                    </span>
+                    {quantityInCart > 0 && (
+                      <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white">
+                        x{quantityInCart}
                       </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
-      </div>
+                    )}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
