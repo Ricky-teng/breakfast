@@ -16,7 +16,11 @@ const POLL_INTERVAL_MS = 4000;
 const OVERDUE_MINUTES = 5;
 const NEW_ORDER_HIGHLIGHT_MS = 4000;
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error(`request failed: ${res.status}`);
+    return res.json();
+  });
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("zh-TW", {
@@ -117,7 +121,7 @@ function WarnIcon() {
 }
 
 export default function BoardPage() {
-  const { data, mutate, isLoading } = useSWR<{ messages: Message[] }>(
+  const { data, error, mutate, isLoading } = useSWR<{ messages: Message[] }>(
     "/api/messages",
     fetcher,
     { refreshInterval: POLL_INTERVAL_MS },
@@ -304,6 +308,11 @@ export default function BoardPage() {
             只顯示未完成
           </label>
         </div>
+        {error && (
+          <div className="bg-red-600 px-4 py-1.5 text-center text-sm font-medium text-white sm:px-6">
+            連線中斷,畫面可能不是最新資料——正在嘗試重新連線…
+          </div>
+        )}
       </div>
 
       <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">

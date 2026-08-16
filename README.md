@@ -9,6 +9,9 @@
 - 三種狀態:新訂單(琥珀色)→ 店員點「開始製作」後變製作中(藍色,同時會發一則 LINE 訊息通知客人「開始製作囉」)→ 「標記完成」
 - 訂單超過 5 分鐘還沒完成會自動變紅色提醒,方便尖峰時段抓漏單
 - LINE 如果因為逾時重送同一則訊息(webhook 重試機制),系統會自動辨識並跳過,不會出現重複訂單
+- 「標記完成」時也會發一則 LINE 訊息通知客人可以來取餐
+- 每天凌晨 00:00(台灣時間)自動清空當天所有訂單紀錄,不留歷史
+- 平板畫面連不上伺服器時,會顯示紅色提示條「連線中斷」
 
 ## 架構
 
@@ -44,6 +47,7 @@ DATABASE_URL=            # 見下方「本機資料庫」
 LINE_CHANNEL_SECRET=     # LINE Developers Console 取得
 LINE_CHANNEL_ACCESS_TOKEN=
 BOARD_PIN=                # 自己設定的平板登入 PIN
+CRON_SECRET=              # 隨機字串,保護每日清空訂單的 API 不被外部呼叫
 ```
 
 3. **本機資料庫**(不需要另外安裝 Postgres):
@@ -81,8 +85,9 @@ npm run dev
 
 1. 把這個專案推上 GitHub
 2. 到 [vercel.com](https://vercel.com) 匯入專案
-3. 在 Vercel 的環境變數設定裡填入 `DATABASE_URL`、`LINE_CHANNEL_SECRET`、`LINE_CHANNEL_ACCESS_TOKEN`、`BOARD_PIN`(正式環境的資料庫連線字串,不要用本機 `prisma dev` 那組)
+3. 在 Vercel 的環境變數設定裡填入 `DATABASE_URL`、`LINE_CHANNEL_SECRET`、`LINE_CHANNEL_ACCESS_TOKEN`、`BOARD_PIN`、`CRON_SECRET`(正式環境的資料庫連線字串,不要用本機 `prisma dev` 那組)
 4. 部署完成後,回到上一步驟把 Webhook URL 設定好
+5. `vercel.json` 裡已經設定好每天台灣時間 00:00 自動呼叫清空訂單的 API,Vercel 會自動排程,不用額外設定
 
 ## 平板怎麼用
 
